@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>BUZZR</title>
+<title>BUZZER</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;600&display=swap');
 
@@ -221,7 +221,7 @@
   }
   .q-tile:active { transform: scale(0.94); }
   .q-tile.selected { border-color: var(--accent); background: rgba(255,77,0,0.08); }
-  .q-tile.called { border-color: var(--accent2); background: rgba(255,170,0,0.08); pointer-events: none; }
+  .q-tile.called { border-color: var(--green); background: rgba(0,230,118,0.08); pointer-events: none; }
   .q-tile.done { opacity: 0.25; pointer-events: none; }
 
   .q-num {
@@ -234,7 +234,7 @@
     font-size: 8px; letter-spacing: 1px;
     color: var(--muted); text-transform: uppercase;
   }
-  .q-tile.called .q-st { color: var(--accent2); }
+  .q-tile.called .q-st { color: var(--green); }
   .q-tile.selected .q-st { color: var(--accent); }
 
   /* CALL BUTTON */
@@ -508,6 +508,7 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────
+// Auto-detect: connects back to whatever server served this page
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}${location.port ? ':' + location.port : ''}`;
 
 // ─── STATE ────────────────────────────────────────────────
@@ -528,6 +529,7 @@ function connect() {
     wsReady = true;
     clearTimeout(reconnectTimer);
     updateConnUI(true);
+    console.log('[WS] Connected');
   };
 
   ws.onmessage = (e) => {
@@ -549,7 +551,9 @@ function connect() {
     scheduleReconnect();
   };
 
-  ws.onerror = () => { ws.close(); };
+  ws.onerror = () => {
+    ws.close();
+  };
 }
 
 function scheduleReconnect() {
@@ -562,6 +566,7 @@ function send(obj) {
 }
 
 function updateConnUI(online) {
+  // Home dot
   const hd = document.getElementById('home-dot');
   const ht = document.getElementById('home-conn-text');
   if (online) {
@@ -571,10 +576,13 @@ function updateConnUI(online) {
     hd.className = 'dot connecting';
     ht.textContent = 'Reconnecting...';
   }
+  // Staff live dot
   const sl = document.getElementById('staff-live');
   sl.className = online ? 'live-dot' : 'live-dot offline';
+  // Conn bar
   document.getElementById('cb-dot').className = online ? 'dot online' : 'dot connecting';
   document.getElementById('cb-text').textContent = online ? `WiFi — ${WS_URL}` : 'Reconnecting...';
+  // Customer
   document.getElementById('cust-dot').className = online ? 'dot online' : 'dot connecting';
   document.getElementById('cust-conn').textContent = online ? 'Connected via WiFi' : 'Reconnecting...';
 }
@@ -588,7 +596,13 @@ function show(id) {
 }
 
 function goHome() { show('screen-home'); }
-function goStaff() { show('screen-staff'); renderQueue(); renderLog(); }
+
+function goStaff() {
+  show('screen-staff');
+  renderQueue();
+  renderLog();
+}
+
 function goEnter() { show('screen-enter'); }
 
 function confirmCustomer() {
@@ -701,6 +715,7 @@ function staffLogin() {
   }
 }
 
+// ─── INIT ─────────────────────────────────────────────────
 connect();
 </script>
 </body>
