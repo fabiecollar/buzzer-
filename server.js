@@ -1,105 +1,722 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { WebSocketServer } = require('ws');
-const os = require('os');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BUZZER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;600&display=swap');
 
-// ─── GET LOCAL IP ─────────────────────────────────────────
-function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
-    }
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #222222;
+    --accent: #ff4d00;
+    --accent2: #ffaa00;
+    --green: #00e676;
+    --text: #f0f0f0;
+    --muted: #555;
   }
-  return 'localhost';
-}
 
-const PORT = 3000;
-const IP = getLocalIP();
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-// ─── HTTP SERVER (serves the HTML app) ───────────────────
-const httpServer = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/index.html') {
-    const html = fs.readFileSync(path.join(__dirname, 'app.html'));
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  } else {
-    res.writeHead(404);
-    res.end('Not found');
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
   }
-});
 
-// ─── WEBSOCKET SERVER ─────────────────────────────────────
-const wss = new WebSocketServer({ server: httpServer });
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
 
-let clients = new Set();
-let orderQueue = [];   // [{num, status}]
+  /* ── HOME ─────────────────────────────────────────────── */
+  #screen-home {
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    position: relative;
+  }
+
+  #screen-home::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: 50%;
+    transform: translateX(-50%);
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(255,77,0,0.12) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 88px;
+    letter-spacing: 10px;
+    color: var(--text);
+    text-align: center;
+    line-height: 1;
+  }
+  .logo span { color: var(--accent); }
+
+  .tagline {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 6px;
+    margin-bottom: 56px;
+  }
+
+  .role-card {
+    width: 100%;
+    max-width: 340px;
+    padding: 24px 28px;
+    margin: 8px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    border: none;
+    text-align: left;
+  }
+  .role-card:active { transform: scale(0.97); }
+
+  .btn-staff {
+    background: var(--accent);
+    box-shadow: 0 8px 32px rgba(255,77,0,0.3);
+  }
+  .btn-customer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .role-card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 4px;
+    color: white;
+    display: block;
+  }
+  .btn-customer .role-card-title { color: var(--text); }
+
+  .role-card-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    margin-top: 4px;
+    display: block;
+  }
+  .btn-customer .role-card-sub { color: var(--muted); }
+
+  .conn-status-home {
+    margin-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #444; }
+  .dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.connecting { background: var(--accent2); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  /* ── TOPBAR ───────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .back-btn {
+    background: none; border: none;
+    color: var(--muted); font-size: 22px;
+    cursor: pointer; padding: 2px 6px; line-height: 1;
+  }
+  .topbar-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 19px; letter-spacing: 3px; color: var(--text);
+  }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    margin-left: auto;
+    animation: blink 2s infinite;
+  }
+  .live-dot.offline { background: #ff4444; box-shadow: none; animation: none; }
+
+  /* ── STAFF ────────────────────────────────────────────── */
+  #screen-staff { background: var(--bg); }
+
+  .staff-body {
+    padding: 22px 18px 100px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .sec-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 3px;
+    color: var(--muted); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .order-row {
+    display: flex; gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .order-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px; letter-spacing: 4px;
+    padding: 12px 16px; outline: none;
+    text-align: center;
+    -moz-appearance: textfield;
+    transition: border-color 0.2s;
+  }
+  .order-input::-webkit-inner-spin-button,
+  .order-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .order-input:focus { border-color: var(--accent); }
+  .order-input::placeholder { color: var(--muted); }
+
+  .add-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text);
+    font-family: 'Bebas Neue', sans-serif; font-size: 28px;
+    padding: 0 20px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .add-btn:active { background: #1a1a1a; }
+
+  /* QUEUE */
+  .queue-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px; margin-bottom: 22px;
+  }
+
+  .q-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.12s;
+    user-select: none;
+  }
+  .q-tile:active { transform: scale(0.94); }
+  .q-tile.selected { border-color: var(--accent); background: rgba(255,77,0,0.08); }
+  .q-tile.called { border-color: var(--green); background: rgba(0,230,118,0.08); pointer-events: none; }
+  .q-tile.done { opacity: 0.25; pointer-events: none; }
+
+  .q-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px; letter-spacing: 2px;
+    color: var(--text); display: block;
+  }
+  .q-st {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px; letter-spacing: 1px;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .q-tile.called .q-st { color: var(--green); }
+  .q-tile.selected .q-st { color: var(--accent); }
+
+  /* CALL BUTTON */
+  .call-btn-wrap {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 14px 18px;
+    background: linear-gradient(to top, #0a0a0a 80%, transparent);
+  }
+
+  .call-btn {
+    width: 100%; padding: 20px;
+    background: var(--accent); border: none; border-radius: 4px;
+    color: white;
+    font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 4px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .call-btn:active { transform: scale(0.98); }
+  .call-btn:disabled { background: #1a1a1a; color: var(--muted); cursor: not-allowed; }
+
+  /* LOG */
+  .log-wrap { margin-top: 8px; }
+  .log-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid #161616;
+  }
+  .log-n {
+    font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+    color: var(--accent); width: 36px;
+  }
+  .log-m {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--muted); flex: 1; letter-spacing: 1px;
+  }
+  .log-t {
+    font-family: 'DM Mono', monospace; font-size: 10px; color: #2a2a2a;
+  }
+
+  /* ── ENTER ────────────────────────────────────────────── */
+  #screen-enter {
+    align-items: center; justify-content: center;
+    padding: 40px 24px; background: var(--bg);
+  }
+
+  .enter-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 38px; letter-spacing: 4px;
+    text-align: center; line-height: 1.1;
+    margin-bottom: 6px;
+  }
+  .enter-sub {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: var(--muted);
+    text-align: center; margin-bottom: 36px;
+    text-transform: uppercase;
+  }
+
+  .big-input {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px; letter-spacing: 8px;
+    padding: 18px; outline: none;
+    text-align: center; width: 100%; max-width: 300px;
+    margin-bottom: 16px;
+    -moz-appearance: textfield;
+    transition: border-color 0.2s;
+  }
+  .big-input::-webkit-inner-spin-button,
+  .big-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .big-input:focus { border-color: var(--accent); }
+
+  .confirm-btn {
+    width: 100%; max-width: 300px; padding: 18px;
+    background: var(--accent); border: none; border-radius: 4px;
+    color: white;
+    font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px;
+    cursor: pointer;
+  }
+  .confirm-btn:active { background: #cc3d00; }
+
+  /* ── CUSTOMER WAIT ────────────────────────────────────── */
+  #screen-customer {
+    align-items: center; justify-content: center;
+    padding: 40px 24px; background: var(--bg);
+    position: relative; text-align: center;
+  }
+
+  .cust-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+
+  .ring-wrap {
+    position: relative;
+    width: 220px; height: 220px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 20px auto;
+  }
+
+  .ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+  }
+  .ring-spin {
+    position: absolute; inset: -1px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--accent);
+    animation: spin 2s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .cust-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 100px; letter-spacing: 4px; line-height: 1;
+    color: var(--text); position: relative; z-index: 1;
+  }
+
+  .cust-status {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin-top: 14px;
+  }
+
+  .wifi-indicator {
+    margin-top: 28px;
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: var(--muted);
+  }
+
+  /* ── ALERT OVERLAY ────────────────────────────────────── */
+  .alert-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 200;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: var(--accent);
+    animation: ap 0.6s ease infinite alternate;
+  }
+  .alert-overlay.show { display: flex; }
+
+  @keyframes ap {
+    from { background: #ff4d00; }
+    to   { background: #ff7700; }
+  }
+
+  .al-top {
+    font-family: 'Bebas Neue', sans-serif; font-size: 22px;
+    letter-spacing: 6px; color: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+  }
+  .al-num {
+    font-family: 'Bebas Neue', sans-serif; font-size: 160px;
+    line-height: 1; color: white; letter-spacing: 4px;
+  }
+  .al-sub {
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    letter-spacing: 3px; color: rgba(255,255,255,0.7);
+    text-transform: uppercase; margin-top: 4px;
+  }
+  .al-dismiss {
+    margin-top: 52px;
+    background: rgba(0,0,0,0.25);
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 4px; color: white;
+    font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+    letter-spacing: 3px; padding: 14px 44px; cursor: pointer;
+  }
+
+  /* ── CONN BAR ─────────────────────────────────────────── */
+  .conn-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 7px 16px; display: none;
+    align-items: center; gap: 8px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 1px; z-index: 100;
+  }
+  .conn-bar.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="screen-home" class="screen active">
+  <div class="logo">BUZZ<span>R</span></div>
+  <div class="tagline">WiFi Order Pager System</div>
+  <button class="role-card btn-staff" onclick="staffLogin()">
+    <span class="role-card-title">STAFF</span>
+    <span class="role-card-sub">Counter / Kitchen — Call orders</span>
+  </button>
+  <button class="role-card btn-customer" onclick="goEnter()" style="margin-top:4px">
+    <span class="role-card-title">CUSTOMER</span>
+    <span class="role-card-sub">I have an order number</span>
+  </button>
+  <div class="conn-status-home">
+    <div class="dot connecting" id="home-dot"></div>
+    <span id="home-conn-text">Connecting...</span>
+  </div>
+</div>
+
+<div id="screen-staff" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">STAFF PANEL</span>
+    <div class="live-dot" id="staff-live"></div>
+  </div>
+  <div class="staff-body">
+    <div class="sec-label">Add Order</div>
+    <div class="order-row">
+      <input class="order-input" id="order-input" type="number"
+        placeholder="###" min="1" max="999"
+        onkeydown="if(event.key==='Enter') addOrder()">
+      <button class="add-btn" onclick="addOrder()">+</button>
+    </div>
+
+    <div class="sec-label">Queue — Tap to Select</div>
+    <div class="queue-grid" id="queue-grid">
+      <div style="grid-column:1/-1;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;padding:8px 0">
+        No orders yet
+      </div>
+    </div>
+
+    <div class="sec-label" style="margin-top:8px">Call Log</div>
+    <div class="log-wrap" id="log-wrap"></div>
+  </div>
+  <div class="call-btn-wrap">
+    <button class="call-btn" id="call-btn" onclick="callSelected()" disabled>
+      SELECT AN ORDER
+    </button>
+  </div>
+</div>
+
+<div id="screen-enter" class="screen">
+  <div class="enter-title">YOUR ORDER<br>NUMBER</div>
+  <div class="enter-sub">Enter the number from your receipt</div>
+  <input class="big-input" id="cust-input" type="number"
+    placeholder="0" min="1" max="999"
+    onkeydown="if(event.key==='Enter') confirmCustomer()">
+  <button class="confirm-btn" onclick="confirmCustomer()">WAIT FOR MY ORDER →</button>
+</div>
+
+<div id="screen-customer" class="screen">
+  <div class="cust-label">Your Order Number</div>
+  <div class="ring-wrap">
+    <div class="ring"></div>
+    <div class="ring-spin" id="cust-spinner"></div>
+    <div class="cust-num" id="cust-num-display">—</div>
+  </div>
+  <div class="cust-status" id="cust-status">Waiting for your order...</div>
+  <div class="wifi-indicator">
+    <div class="dot online" id="cust-dot"></div>
+    <span id="cust-conn">Connected via WiFi</span>
+  </div>
+</div>
+
+<div class="alert-overlay" id="alert-overlay">
+  <div class="al-top">ORDER READY</div>
+  <div class="al-num" id="al-num">—</div>
+  <div class="al-sub">Please collect at the counter</div>
+  <button class="al-dismiss" onclick="dismissAlert()">GOT IT ✓</button>
+</div>
+
+<div class="conn-bar" id="conn-bar">
+  <div class="dot online" id="cb-dot"></div>
+  <span id="cb-text">Connected</span>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+// Auto-detect: connects back to whatever server served this page
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}${location.port ? ':' + location.port : ''}`;
+
+// ─── STATE ────────────────────────────────────────────────
+let ws = null;
+let wsReady = false;
+let queue = [];
 let callLog = [];
+let selectedNum = null;
+let myOrderNum = null;
+let reconnectTimer = null;
 
-wss.on('connection', (ws) => {
-  clients.add(ws);
-  console.log(`[+] Client connected. Total: ${clients.size}`);
+// ─── WEBSOCKET ────────────────────────────────────────────
+function connect() {
+  try { ws = new WebSocket(WS_URL); }
+  catch(e) { scheduleReconnect(); return; }
 
-  // Send current queue state to new client
-  ws.send(JSON.stringify({ type: 'QUEUE_STATE', queue: orderQueue, log: callLog }));
+  ws.onopen = () => {
+    wsReady = true;
+    clearTimeout(reconnectTimer);
+    updateConnUI(true);
+    console.log('[WS] Connected');
+  };
 
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data);
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'QUEUE_STATE') {
+      queue = msg.queue;
+      callLog = msg.log;
+      renderQueue();
+      renderLog();
+    }
+    if (msg.type === 'ORDER_READY') {
+      if (myOrderNum && msg.num === myOrderNum) triggerAlert(msg.num);
+    }
+  };
 
-      if (msg.type === 'ADD_ORDER') {
-        const num = parseInt(msg.num);
-        if (!orderQueue.find(o => o.num === num)) {
-          orderQueue.push({ num, status: 'waiting' });
-          broadcast({ type: 'QUEUE_STATE', queue: orderQueue, log: callLog });
-          console.log(`[+] Order added: ${num}`);
-        }
-      }
+  ws.onclose = () => {
+    wsReady = false;
+    updateConnUI(false);
+    scheduleReconnect();
+  };
 
-      if (msg.type === 'CALL_ORDER') {
-        const num = parseInt(msg.num);
-        const item = orderQueue.find(o => o.num === num);
-        if (item) {
-          item.status = 'called';
-          const entry = { num, time: new Date().toTimeString().slice(0,5) };
-          callLog.unshift(entry);
-          if (callLog.length > 20) callLog.pop();
-          broadcast({ type: 'QUEUE_STATE', queue: orderQueue, log: callLog });
-          broadcast({ type: 'ORDER_READY', num });
-          console.log(`[🔔] Order called: ${num}`);
-          // Auto-remove after 15s
-          setTimeout(() => {
-            orderQueue = orderQueue.filter(o => o.num !== num);
-            broadcast({ type: 'QUEUE_STATE', queue: orderQueue, log: callLog });
-          }, 15000);
-        }
-      }
-
-    } catch(e) { console.error('Parse error:', e); }
-  });
-
-  ws.on('close', () => {
-    clients.delete(ws);
-    console.log(`[-] Client disconnected. Total: ${clients.size}`);
-  });
-});
-
-function broadcast(msg) {
-  const str = JSON.stringify(msg);
-  clients.forEach(c => { if (c.readyState === 1) c.send(str); });
+  ws.onerror = () => {
+    ws.close();
+  };
 }
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log('\n');
-  console.log('  ██████  ██    ██ ███████ ███████ ███████ ██████  ');
-  console.log('  ██   ██ ██    ██    ███     ███  ██      ██   ██ ');
-  console.log('  ██████  ██    ██   ███     ███   █████   ██████  ');
-  console.log('  ██   ██ ██    ██  ███     ███    ██      ██   ██ ');
-  console.log('  ██████   ██████  ███████ ███████ ███████ ██   ██ ');
-  console.log('\n');
-  console.log(`  ✅ Server running`);
-  console.log(`\n  📱 Open on any phone on this WiFi:`);
-  console.log(`\n     http://${IP}:${PORT}\n`);
-  console.log(`  🖥️  Or on this machine: http://localhost:${PORT}\n`);
-});
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, 3000);
+}
+
+function send(obj) {
+  if (ws && wsReady) ws.send(JSON.stringify(obj));
+}
+
+function updateConnUI(online) {
+  // Home dot
+  const hd = document.getElementById('home-dot');
+  const ht = document.getElementById('home-conn-text');
+  if (online) {
+    hd.className = 'dot online';
+    ht.textContent = 'Connected to server';
+  } else {
+    hd.className = 'dot connecting';
+    ht.textContent = 'Reconnecting...';
+  }
+  // Staff live dot
+  const sl = document.getElementById('staff-live');
+  sl.className = online ? 'live-dot' : 'live-dot offline';
+  // Conn bar
+  document.getElementById('cb-dot').className = online ? 'dot online' : 'dot connecting';
+  document.getElementById('cb-text').textContent = online ? `WiFi — ${WS_URL}` : 'Reconnecting...';
+  // Customer
+  document.getElementById('cust-dot').className = online ? 'dot online' : 'dot connecting';
+  document.getElementById('cust-conn').textContent = online ? 'Connected via WiFi' : 'Reconnecting...';
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const bar = document.getElementById('conn-bar');
+  bar.className = (id === 'screen-staff' || id === 'screen-customer') ? 'conn-bar visible' : 'conn-bar';
+}
+
+function goHome() { show('screen-home'); }
+
+function goStaff() {
+  show('screen-staff');
+  renderQueue();
+  renderLog();
+}
+
+function goEnter() { show('screen-enter'); }
+
+function confirmCustomer() {
+  const v = parseInt(document.getElementById('cust-input').value);
+  if (!v || v < 1) return;
+  myOrderNum = v;
+  document.getElementById('cust-num-display').textContent = v;
+  document.getElementById('cust-status').textContent = 'Waiting for your order...';
+  show('screen-customer');
+}
+
+// ─── STAFF ────────────────────────────────────────────────
+function addOrder() {
+  const input = document.getElementById('order-input');
+  const num = parseInt(input.value);
+  if (!num || num < 1 || num > 999) return;
+  send({ type: 'ADD_ORDER', num });
+  input.value = '';
+  input.focus();
+}
+
+function selectTile(num) {
+  const item = queue.find(q => q.num === num);
+  if (!item || item.status !== 'waiting') return;
+  selectedNum = num;
+  renderQueue();
+  const btn = document.getElementById('call-btn');
+  btn.textContent = `🔔 CALL ORDER ${num}`;
+  btn.disabled = false;
+}
+
+function callSelected() {
+  if (!selectedNum) return;
+  send({ type: 'CALL_ORDER', num: selectedNum });
+  selectedNum = null;
+  document.getElementById('call-btn').textContent = 'SELECT AN ORDER';
+  document.getElementById('call-btn').disabled = true;
+}
+
+function renderQueue() {
+  const grid = document.getElementById('queue-grid');
+  grid.innerHTML = '';
+  if (!queue.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:8px 0">No orders yet</div>';
+    return;
+  }
+  queue.forEach(item => {
+    const d = document.createElement('div');
+    let cls = `q-tile ${item.status}`;
+    if (item.num === selectedNum) cls += ' selected';
+    d.className = cls;
+    d.innerHTML = `<span class="q-num">${item.num}</span><span class="q-st">${item.status}</span>`;
+    if (item.status === 'waiting') d.onclick = () => selectTile(item.num);
+    grid.appendChild(d);
+  });
+}
+
+function renderLog() {
+  const wrap = document.getElementById('log-wrap');
+  wrap.innerHTML = '';
+  if (!callLog.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:11px;padding:8px 0">No calls yet</div>';
+    return;
+  }
+  callLog.forEach(entry => {
+    const r = document.createElement('div');
+    r.className = 'log-row';
+    r.innerHTML = `<span class="log-n">${entry.num}</span><span class="log-m">Order called</span><span class="log-t">${entry.time}</span>`;
+    wrap.appendChild(r);
+  });
+}
+
+// ─── ALERT ────────────────────────────────────────────────
+function triggerAlert(num) {
+  document.getElementById('al-num').textContent = num;
+  document.getElementById('alert-overlay').classList.add('show');
+  document.getElementById('cust-status').textContent = '✅ ORDER READY — Please collect';
+  document.getElementById('cust-spinner').style.display = 'none';
+  if (navigator.vibrate) navigator.vibrate([400, 100, 400, 100, 800]);
+  playBeep();
+}
+
+function dismissAlert() {
+  document.getElementById('alert-overlay').classList.remove('show');
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [[880, 0], [880, 0.28], [1100, 0.56]].forEach(([freq, t]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq; o.type = 'square';
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.22);
+      o.start(ctx.currentTime + t);
+      o.stop(ctx.currentTime + t + 0.22);
+    });
+  } catch(e) {}
+}
+
+// ─── STAFF LOGIN ──────────────────────────────────────────
+function staffLogin() {
+  const pw = prompt("Enter staff password:");
+  if (pw === "12345") {
+    goStaff();
+  } else if (pw !== null) {
+    alert("Wrong password.");
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>
