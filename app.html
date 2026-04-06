@@ -425,7 +425,7 @@
 <div id="screen-home" class="screen active">
   <div class="logo">BUZZ<span>R</span></div>
   <div class="tagline">WiFi Order Pager System</div>
-  <button class="role-card btn-staff" onclick="goStaff()">
+  <button class="role-card btn-staff" onclick="staffLogin()">
     <span class="role-card-title">STAFF</span>
     <span class="role-card-sub">Counter / Kitchen — Call orders</span>
   </button>
@@ -689,6 +689,16 @@ function playBeep() {
       o.stop(ctx.currentTime + t + 0.22);
     });
   } catch(e) {}
+}
+
+// ─── STAFF LOGIN ──────────────────────────────────────────
+function staffLogin() {
+  const pw = prompt("Enter staff password:");
+  if (pw === "12345") {
+    goStaff();
+  } else if (pw !== null) {
+    alert("Wrong password.");
+  }
 }
 
 connect();
