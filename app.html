@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>BUZZER</title>
+<title>BUZZR</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;600&display=swap');
 
@@ -422,7 +422,6 @@
 </head>
 <body>
 
-<!-- ── HOME ─────────────────────────────────────────────── -->
 <div id="screen-home" class="screen active">
   <div class="logo">BUZZ<span>R</span></div>
   <div class="tagline">WiFi Order Pager System</div>
@@ -440,7 +439,6 @@
   </div>
 </div>
 
-<!-- ── STAFF ─────────────────────────────────────────────── -->
 <div id="screen-staff" class="screen">
   <div class="topbar">
     <button class="back-btn" onclick="goHome()">←</button>
@@ -473,7 +471,6 @@
   </div>
 </div>
 
-<!-- ── ENTER NUMBER ──────────────────────────────────────── -->
 <div id="screen-enter" class="screen">
   <div class="enter-title">YOUR ORDER<br>NUMBER</div>
   <div class="enter-sub">Enter the number from your receipt</div>
@@ -483,7 +480,6 @@
   <button class="confirm-btn" onclick="confirmCustomer()">WAIT FOR MY ORDER →</button>
 </div>
 
-<!-- ── CUSTOMER WAIT ──────────────────────────────────────── -->
 <div id="screen-customer" class="screen">
   <div class="cust-label">Your Order Number</div>
   <div class="ring-wrap">
@@ -498,7 +494,6 @@
   </div>
 </div>
 
-<!-- ── ALERT OVERLAY ─────────────────────────────────────── -->
 <div class="alert-overlay" id="alert-overlay">
   <div class="al-top">ORDER READY</div>
   <div class="al-num" id="al-num">—</div>
@@ -506,7 +501,6 @@
   <button class="al-dismiss" onclick="dismissAlert()">GOT IT ✓</button>
 </div>
 
-<!-- ── CONN BAR ──────────────────────────────────────────── -->
 <div class="conn-bar" id="conn-bar">
   <div class="dot online" id="cb-dot"></div>
   <span id="cb-text">Connected</span>
@@ -514,8 +508,7 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────
-// Auto-detect: connects back to whatever server served this page
-const WS_URL = `ws://${location.hostname}:${location.port || 3000}`;
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}${location.port ? ':' + location.port : ''}`;
 
 // ─── STATE ────────────────────────────────────────────────
 let ws = null;
@@ -535,7 +528,6 @@ function connect() {
     wsReady = true;
     clearTimeout(reconnectTimer);
     updateConnUI(true);
-    console.log('[WS] Connected');
   };
 
   ws.onmessage = (e) => {
@@ -557,9 +549,7 @@ function connect() {
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    ws.close();
-  };
+  ws.onerror = () => { ws.close(); };
 }
 
 function scheduleReconnect() {
@@ -572,7 +562,6 @@ function send(obj) {
 }
 
 function updateConnUI(online) {
-  // Home dot
   const hd = document.getElementById('home-dot');
   const ht = document.getElementById('home-conn-text');
   if (online) {
@@ -582,13 +571,10 @@ function updateConnUI(online) {
     hd.className = 'dot connecting';
     ht.textContent = 'Reconnecting...';
   }
-  // Staff live dot
   const sl = document.getElementById('staff-live');
   sl.className = online ? 'live-dot' : 'live-dot offline';
-  // Conn bar
   document.getElementById('cb-dot').className = online ? 'dot online' : 'dot connecting';
   document.getElementById('cb-text').textContent = online ? `WiFi — ${WS_URL}` : 'Reconnecting...';
-  // Customer
   document.getElementById('cust-dot').className = online ? 'dot online' : 'dot connecting';
   document.getElementById('cust-conn').textContent = online ? 'Connected via WiFi' : 'Reconnecting...';
 }
@@ -602,13 +588,7 @@ function show(id) {
 }
 
 function goHome() { show('screen-home'); }
-
-function goStaff() {
-  show('screen-staff');
-  renderQueue();
-  renderLog();
-}
-
+function goStaff() { show('screen-staff'); renderQueue(); renderLog(); }
 function goEnter() { show('screen-enter'); }
 
 function confirmCustomer() {
@@ -711,7 +691,6 @@ function playBeep() {
   } catch(e) {}
 }
 
-// ─── INIT ─────────────────────────────────────────────────
 connect();
 </script>
 </body>
